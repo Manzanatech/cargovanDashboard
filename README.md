@@ -2,6 +2,20 @@
 
 Next.js dashboard concept for CargoVan operations with a Supabase client scaffold.
 
+## Design Notes (Load Plan UI) ⬅ NEW
+
+The **Load Plan screen** follows an aviation-inspired cargo load-planning hierarchy
+(similar to airline dispatch and aircraft load consoles).
+
+- The load diagram is the primary control surface
+- Position-first interaction (select a shelf/slot to view contents)
+- Other UI elements support dispatch readiness and validation
+
+Detailed rules live in:
+`docs/design-principles.md`
+
+This applies **only to the Load Plan UI**. Other sections may use standard dashboard patterns.
+
 ## Project structure
 
 ```
