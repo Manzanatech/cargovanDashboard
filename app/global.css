@@ -51,6 +51,11 @@ button.ghost {
   color: #20324a;
 }
 
+button.ghost.small {
+  padding: 8px 14px;
+  font-size: 12px;
+}
+
 .app-shell {
   display: grid;
   grid-template-columns: 280px 1fr;
@@ -206,8 +211,59 @@ h2 {
 
 .van-layout {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
-  gap: 20px;
+  grid-template-columns: minmax(0, 1.8fr) minmax(0, 1fr);
+  gap: 24px;
+}
+
+.plan-stage {
+  background: #f2f5fa;
+  border-radius: 24px;
+  border: 1px solid #dee6f2;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-height: 420px;
+}
+
+.stage-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.stage-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.stage-placeholder {
+  flex: 1;
+  border-radius: 20px;
+  background: linear-gradient(120deg, rgba(255, 255, 255, 0.8), rgba(240, 244, 251, 0.9));
+  border: 1px dashed #c8d3e6;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  padding: 24px;
+}
+
+.stage-placeholder .title {
+  font-size: 16px;
+}
+
+.stage-legend {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.plan-aside {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 .van {

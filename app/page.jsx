@@ -89,100 +89,125 @@ export default function Home() {
               <button className="ghost">Switch view</button>
             </header>
             <div className="van-layout">
-              <div className="van">
-                <div className="van-header">
-                  <span>Bulkhead</span>
-                  <span>Rear</span>
-                </div>
-                <div className="shelf-grid">
-                  <button className="shelf assigned">
-                    <p>Upper A</p>
-                    <span>Electrical</span>
-                  </button>
-                  <button className="shelf assigned">
-                    <p>Upper B</p>
-                    <span>Plumbing</span>
-                  </button>
-                  <button className="shelf assigned">
-                    <p>Upper C</p>
-                    <span>HVAC</span>
-                  </button>
-                  <button className="shelf assigned">
-                    <p>Mid A</p>
-                    <span>Finish</span>
-                  </button>
-                  <button className="shelf assigned">
-                    <p>Mid B</p>
-                    <span>Drywall</span>
-                  </button>
-                  <button className="shelf empty">
-                    <p>Mid C</p>
-                    <span>Open</span>
-                  </button>
-                  <button className="shelf assigned">
-                    <p>Lower A</p>
-                    <span>Power tools</span>
-                  </button>
-                  <button className="shelf assigned">
-                    <p>Lower B</p>
-                    <span>Safety</span>
-                  </button>
-                  <button className="shelf empty">
-                    <p>Lower C</p>
-                    <span>Open</span>
-                  </button>
-                </div>
-                <div className="floor">
+              <div className="plan-stage">
+                <div className="stage-header">
                   <div>
-                    <p className="label">Floor bays</p>
-                    <p className="meta">Generator · Pipe bender · Lift dolly</p>
+                    <p className="eyebrow">Load plan</p>
+                    <h3>Route 7A cargo layout</h3>
                   </div>
-                  <span className="chip warning">Secure</span>
+                  <div className="stage-actions">
+                    <button className="ghost small">Views</button>
+                    <button className="ghost small">Annotate</button>
+                  </div>
+                </div>
+                <div className="stage-placeholder">
+                  <div>
+                    <p className="title">Cargo van image space</p>
+                    <p className="meta">Drop in your van illustration or photo here.</p>
+                  </div>
+                </div>
+                <div className="stage-legend">
+                  <span className="chip success">Ready</span>
+                  <span className="chip warning">Checks</span>
+                  <span className="chip neutral">Open</span>
                 </div>
               </div>
-              <div className="trade-tools">
-                <h4>Tools by trade</h4>
-                <div className="trade-card">
-                  <div>
-                    <p className="title">Electrical</p>
-                    <p className="meta">Conduit kit, multimeters, fish tape</p>
+              <div className="plan-aside">
+                <div className="van">
+                  <div className="van-header">
+                    <span>Bulkhead</span>
+                    <span>Rear</span>
                   </div>
-                  <span className="chip success">Ready</span>
+                  <div className="shelf-grid">
+                    <button className="shelf assigned">
+                      <p>Upper A</p>
+                      <span>Electrical</span>
+                    </button>
+                    <button className="shelf assigned">
+                      <p>Upper B</p>
+                      <span>Plumbing</span>
+                    </button>
+                    <button className="shelf assigned">
+                      <p>Upper C</p>
+                      <span>HVAC</span>
+                    </button>
+                    <button className="shelf assigned">
+                      <p>Mid A</p>
+                      <span>Finish</span>
+                    </button>
+                    <button className="shelf assigned">
+                      <p>Mid B</p>
+                      <span>Drywall</span>
+                    </button>
+                    <button className="shelf empty">
+                      <p>Mid C</p>
+                      <span>Open</span>
+                    </button>
+                    <button className="shelf assigned">
+                      <p>Lower A</p>
+                      <span>Power tools</span>
+                    </button>
+                    <button className="shelf assigned">
+                      <p>Lower B</p>
+                      <span>Safety</span>
+                    </button>
+                    <button className="shelf empty">
+                      <p>Lower C</p>
+                      <span>Open</span>
+                    </button>
+                  </div>
+                  <div className="floor">
+                    <div>
+                      <p className="label">Floor bays</p>
+                      <p className="meta">Generator · Pipe bender · Lift dolly</p>
+                    </div>
+                    <span className="chip warning">Secure</span>
+                  </div>
                 </div>
-                <div className="trade-card">
-                  <div>
-                    <p className="title">Plumbing</p>
-                    <p className="meta">PEX expander, press tool, cutters</p>
+                <div className="trade-tools">
+                  <h4>Tools by trade</h4>
+                  <div className="trade-card">
+                    <div>
+                      <p className="title">Electrical</p>
+                      <p className="meta">Conduit kit, multimeters, fish tape</p>
+                    </div>
+                    <span className="chip success">Ready</span>
                   </div>
-                  <span className="chip success">Ready</span>
-                </div>
-                <div className="trade-card">
-                  <div>
-                    <p className="title">HVAC</p>
-                    <p className="meta">Gauge set, vacuum pump, refrigerant</p>
+                  <div className="trade-card">
+                    <div>
+                      <p className="title">Plumbing</p>
+                      <p className="meta">PEX expander, press tool, cutters</p>
+                    </div>
+                    <span className="chip success">Ready</span>
                   </div>
-                  <span className="chip warning">2 checks</span>
-                </div>
-                <div className="trade-card">
-                  <div>
-                    <p className="title">Finish</p>
-                    <p className="meta">Laser level, fasteners, trim saw</p>
+                  <div className="trade-card">
+                    <div>
+                      <p className="title">HVAC</p>
+                      <p className="meta">Gauge set, vacuum pump, refrigerant</p>
+                    </div>
+                    <span className="chip warning">2 checks</span>
                   </div>
-                  <span className="chip neutral">Partial</span>
-                </div>
-                <div className="trade-card">
-                  <div>
-                    <p className="title">Drywall</p>
-                    <p className="meta">Taping kit, screw guns, stilts</p>
+                  <div className="trade-card">
+                    <div>
+                      <p className="title">Finish</p>
+                      <p className="meta">Laser level, fasteners, trim saw</p>
+                    </div>
+                    <span className="chip neutral">Partial</span>
                   </div>
-                  <span className="chip success">Ready</span>
-                </div>
-                <div className="trade-card highlight">
-                  <div>
-                    <p className="title">Shared safety</p>
-                    <p className="meta">PPE, harnesses, first aid, signage</p>
+                  <div className="trade-card">
+                    <div>
+                      <p className="title">Drywall</p>
+                      <p className="meta">Taping kit, screw guns, stilts</p>
+                    </div>
+                    <span className="chip success">Ready</span>
                   </div>
-                  <button className="primary small">Reassign</button>
+                  <div className="trade-card highlight">
+                    <div>
+                      <p className="title">Shared safety</p>
+                      <p className="meta">PPE, harnesses, first aid, signage</p>
+                    </div>
+                    <button className="primary small">Reassign</button>
+                  </div>
                 </div>
               </div>
             </div>
