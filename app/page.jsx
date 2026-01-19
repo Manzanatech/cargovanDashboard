@@ -1,9 +1,38 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import DispatchWarnings from './components/DispatchWarnings';
+import Footer from './components/Footer';
+import LoadPlanDiagram from './components/LoadPlanDiagram';
+import PositionDetail from './components/PositionDetail';
+import { dashboardMeta, shelves as initialShelves, warnings } from './data/loadPlan';
+import { supabase } from '../lib/supabaseClient';
+
+const entryFields = [
+  { key: 'quantity', label: 'Quantity', type: 'text' },
+  { key: 'name', label: 'Name', type: 'text' },
+  { key: 'category', label: 'Category', type: 'text' },
+  { key: 'description', label: 'Description', type: 'text', multiline: true },
+  { key: 'partNumber', label: 'Part number', type: 'text' },
+  { key: 'cost', label: 'Approx. cost', type: 'text' }
+];
+
+const defaultEntry = {
+  quantity: '',
+  name: '',
+  category: '',
+  description: '',
+  partNumber: '',
+  cost: ''
+};
 
 export default function Home() {
   const [timestamp, setTimestamp] = useState('just now');
+  const [selectedId, setSelectedId] = useState('shelf-5E');
+  const [shelves, setShelves] = useState(initialShelves);
+  const [isEntryOpen, setIsEntryOpen] = useState(false);
+  const [entryDraft, setEntryDraft] = useState(defaultEntry);
+  const saveTimeoutsRef = useRef(new Map());
 
   useEffect(() => {
     const updateTimestamp = () => {
@@ -20,231 +49,259 @@ export default function Home() {
     return () => clearInterval(interval);
   }, []);
 
+  const selectedShelf = useMemo(
+    () => shelves.find((shelf) => shelf.id === selectedId) ?? shelves[0],
+    [selectedId, shelves]
+  );
+
+  const handleSelectShelf = (id) => {
+    const shelf = shelves.find((item) => item.id === id);
+    setSelectedId(id);
+    setEntryDraft(shelf?.entry ?? defaultEntry);
+    setIsEntryOpen(true);
+  };
+
+  const handleAddEntry = () => {
+    const shelf = shelves.find((item) => item.id === selectedId);
+    setEntryDraft(shelf?.entry ?? defaultEntry);
+    setIsEntryOpen(true);
+  };
+
+  const handleShelfNameChange = (nextName) => {
+    setShelves((prev) =>
+      prev.map((shelf) =>
+        shelf.id === selectedId ? { ...shelf, label: nextName } : shelf
+      )
+    );
+  };
+
+  const handleShelfItemChange = (index, nextValue) => {
+    let updatedShelf = null;
+    setShelves((prev) =>
+      prev.map((shelf) => {
+        if (shelf.id !== selectedId) {
+          return shelf;
+        }
+
+        const nextContents = [...shelf.contents];
+        nextContents[index] = nextValue;
+        updatedShelf = { ...shelf, contents: nextContents };
+        return updatedShelf;
+      })
+    );
+    if (updatedShelf) {
+      scheduleShelfSave(updatedShelf);
+    }
+  };
+
+  const buildSummary = (entry) => {
+    const summaryParts = [
+      entry.quantity && entry.name
+        ? `${entry.quantity} × ${entry.name}`
+        : entry.name || entry.quantity,
+      entry.category ? `(${entry.category})` : null,
+      entry.partNumber ? `PN ${entry.partNumber}` : null,
+      entry.cost ? entry.cost : null,
+      entry.description ? entry.description : null
+    ].filter(Boolean);
+    return summaryParts.join(' · ');
+  };
+
+  const persistShelfToSupabase = async (shelf, summaryOverride) => {
+    if (!supabase) {
+      console.warn('Supabase client unavailable; shelf entry stored locally only.');
+      return;
+    }
+
+    const summary = summaryOverride ?? buildSummary(shelf.entry ?? defaultEntry);
+    const payload = {
+      shelf_id: shelf.id,
+      shelf_label: shelf.label,
+      entry: shelf.entry ?? defaultEntry,
+      contents: shelf.contents,
+      summary,
+      updated_at: new Date().toISOString()
+    };
+
+    const { error } = await supabase
+      .from('shelf_entries')
+      .upsert(payload, { onConflict: 'shelf_id' });
+
+    if (error) {
+      console.error('Failed to save shelf entry to Supabase', error);
+    }
+  };
+
+  const scheduleShelfSave = (shelf) => {
+    const timeouts = saveTimeoutsRef.current;
+    if (timeouts.has(shelf.id)) {
+      clearTimeout(timeouts.get(shelf.id));
+    }
+    const timeoutId = setTimeout(() => {
+      persistShelfToSupabase(shelf);
+      timeouts.delete(shelf.id);
+    }, 600);
+    timeouts.set(shelf.id, timeoutId);
+  };
+
+  const limitToTwoSentences = (value) => {
+    const sentences = value
+      .match(/[^.!?]+[.!?]*/g)
+      ?.map((segment) => segment.trim())
+      .filter((segment) => segment.length > 0) ?? [];
+    return sentences.slice(0, 2).join(' ');
+  };
+
+  const handleEntryDraftChange = (field, nextValue) => {
+    const nextEntryValue =
+      field === 'description' ? limitToTwoSentences(nextValue) : nextValue;
+    setEntryDraft((prev) => ({
+      ...prev,
+      [field]: nextEntryValue
+    }));
+  };
+
+  const handleSaveEntry = async () => {
+    const summary = buildSummary(entryDraft);
+    const currentShelf = shelves.find((item) => item.id === selectedId);
+    const baseContents = currentShelf?.contents ?? [];
+    const nextContents = [...baseContents];
+    const emptyIndex = nextContents.findIndex(
+      (item) => item.trim().length === 0
+    );
+    if (summary) {
+      if (emptyIndex >= 0) {
+        nextContents[emptyIndex] = summary;
+      } else if (nextContents.length > 0) {
+        nextContents[nextContents.length - 1] = summary;
+      }
+    }
+    setShelves((prev) =>
+      prev.map((shelf) => {
+        if (shelf.id !== selectedId) {
+          return shelf;
+        }
+
+        return {
+          ...shelf,
+          entry: {
+            ...shelf.entry,
+            ...entryDraft
+          },
+          contents: nextContents.length ? nextContents : shelf.contents
+        };
+      })
+    );
+    if (currentShelf) {
+      await persistShelfToSupabase(
+        {
+          ...currentShelf,
+          entry: {
+            ...currentShelf.entry,
+            ...entryDraft
+          },
+          contents: nextContents.length ? nextContents : currentShelf.contents
+        },
+        summary
+      );
+    }
+    setIsEntryOpen(false);
+  };
+
   return (
     <div className="app-shell">
-      <aside className="sidebar">
-        <div className="brand">
-          <div className="logo">CV</div>
+      <main className="main">
+        <header className="page-header">
           <div>
-            <p className="eyebrow">CargoVan</p>
-            <h1>Load Console</h1>
+            <p className="eyebrow">{dashboardMeta.hub}</p>
+            <h2>{dashboardMeta.route}</h2>
           </div>
-        </div>
-        <nav className="nav">
-          <button className="nav-item active">Dashboard</button>
-          <button className="nav-item">Load plan</button>
-          <button className="nav-item">Trades</button>
-          <button className="nav-item">Inventory</button>
-          <button className="nav-item">Reports</button>
-        </nav>
-        <div className="status-card">
-          <p className="label">Van readiness</p>
-          <p className="stat">92%</p>
-          <p className="meta">Fully stocked for today</p>
-        </div>
-      </aside>
-
-      <div className="main">
-        <header className="topbar">
-          <div>
-            <p className="eyebrow">Warehouse 03 · West Hub</p>
-            <h2>Route 7A · Morning trades</h2>
-          </div>
-          <div className="actions">
-            <button className="ghost">View map</button>
-            <button className="primary">Lock load</button>
-          </div>
+          <span className="pill neutral">{dashboardMeta.status}</span>
         </header>
 
-        <section className="summary">
-          <div className="summary-card">
-            <p className="label">Load capacity</p>
-            <p className="stat">78%</p>
-            <p className="meta">2 shelves remaining</p>
-          </div>
-          <div className="summary-card">
-            <p className="label">Active trades</p>
-            <p className="stat">5</p>
-            <p className="meta">Electrical · HVAC · Plumbing</p>
-          </div>
-          <div className="summary-card">
-            <p className="label">Toolkits</p>
-            <p className="stat">34</p>
-            <p className="meta">8 require calibration</p>
-          </div>
-          <div className="summary-card">
-            <p className="label">Stops</p>
-            <p className="stat">12</p>
-            <p className="meta">First ETA 08:45</p>
+        <section className="plan-board">
+          <div className="plan-board-content">
+            <LoadPlanDiagram
+              shelves={shelves}
+              selectedId={selectedId}
+              onSelect={handleSelectShelf}
+            />
+            {selectedShelf && (
+              <PositionDetail
+                shelf={selectedShelf}
+                onNameChange={handleShelfNameChange}
+                onItemChange={handleShelfItemChange}
+                onAddEntry={handleAddEntry}
+              />
+            )}
           </div>
         </section>
 
-        <section className="content">
-          <article className="panel van-panel">
-            <header>
+        <DispatchWarnings warnings={warnings} />
+
+        <Footer timestamp={timestamp} />
+      </main>
+      {isEntryOpen && (
+        <div className="entry-modal">
+          <div className="entry-card">
+            <div className="entry-header">
               <div>
-                <h3>Cargo van shelves</h3>
-                <p className="meta">Tap a shelf to view assigned trade kits.</p>
+                <p className="eyebrow">Shelf entry</p>
+                <h3>{selectedShelf?.label}</h3>
               </div>
-              <button className="ghost">Switch view</button>
-            </header>
-            <div className="van-layout">
-              <div className="plan-stage">
-                <div className="stage-header">
-                  <div>
-                    <p className="eyebrow">Load plan</p>
-                    <h3>Route 7A cargo layout</h3>
-                  </div>
-                  <div className="stage-actions">
-                    <button className="ghost small">Views</button>
-                    <button className="ghost small">Annotate</button>
-                  </div>
-                </div>
-                <div className="stage-placeholder">
-                  <div>
-                    <p className="title">Cargo van image space</p>
-                    <p className="meta">Drop in your van illustration or photo here.</p>
-                  </div>
-                </div>
-                <div className="stage-legend">
-                  <span className="chip success">Ready</span>
-                  <span className="chip warning">Checks</span>
-                  <span className="chip neutral">Open</span>
-                </div>
-              </div>
-              <div className="plan-aside">
-                <div className="van">
-                  <div className="van-header">
-                    <span>Bulkhead</span>
-                    <span>Rear</span>
-                  </div>
-                  <div className="shelf-grid">
-                    <button className="shelf assigned">
-                      <p>Upper A</p>
-                      <span>Electrical</span>
-                    </button>
-                    <button className="shelf assigned">
-                      <p>Upper B</p>
-                      <span>Plumbing</span>
-                    </button>
-                    <button className="shelf assigned">
-                      <p>Upper C</p>
-                      <span>HVAC</span>
-                    </button>
-                    <button className="shelf assigned">
-                      <p>Mid A</p>
-                      <span>Finish</span>
-                    </button>
-                    <button className="shelf assigned">
-                      <p>Mid B</p>
-                      <span>Drywall</span>
-                    </button>
-                    <button className="shelf empty">
-                      <p>Mid C</p>
-                      <span>Open</span>
-                    </button>
-                    <button className="shelf assigned">
-                      <p>Lower A</p>
-                      <span>Power tools</span>
-                    </button>
-                    <button className="shelf assigned">
-                      <p>Lower B</p>
-                      <span>Safety</span>
-                    </button>
-                    <button className="shelf empty">
-                      <p>Lower C</p>
-                      <span>Open</span>
-                    </button>
-                  </div>
-                  <div className="floor">
-                    <div>
-                      <p className="label">Floor bays</p>
-                      <p className="meta">Generator · Pipe bender · Lift dolly</p>
-                    </div>
-                    <span className="chip warning">Secure</span>
-                  </div>
-                </div>
-                <div className="trade-tools">
-                  <h4>Tools by trade</h4>
-                  <div className="trade-card">
-                    <div>
-                      <p className="title">Electrical</p>
-                      <p className="meta">Conduit kit, multimeters, fish tape</p>
-                    </div>
-                    <span className="chip success">Ready</span>
-                  </div>
-                  <div className="trade-card">
-                    <div>
-                      <p className="title">Plumbing</p>
-                      <p className="meta">PEX expander, press tool, cutters</p>
-                    </div>
-                    <span className="chip success">Ready</span>
-                  </div>
-                  <div className="trade-card">
-                    <div>
-                      <p className="title">HVAC</p>
-                      <p className="meta">Gauge set, vacuum pump, refrigerant</p>
-                    </div>
-                    <span className="chip warning">2 checks</span>
-                  </div>
-                  <div className="trade-card">
-                    <div>
-                      <p className="title">Finish</p>
-                      <p className="meta">Laser level, fasteners, trim saw</p>
-                    </div>
-                    <span className="chip neutral">Partial</span>
-                  </div>
-                  <div className="trade-card">
-                    <div>
-                      <p className="title">Drywall</p>
-                      <p className="meta">Taping kit, screw guns, stilts</p>
-                    </div>
-                    <span className="chip success">Ready</span>
-                  </div>
-                  <div className="trade-card highlight">
-                    <div>
-                      <p className="title">Shared safety</p>
-                      <p className="meta">PPE, harnesses, first aid, signage</p>
-                    </div>
-                    <button className="primary small">Reassign</button>
-                  </div>
-                </div>
-              </div>
+              <button
+                type="button"
+                className="entry-close"
+                onClick={() => setIsEntryOpen(false)}
+              >
+                Close
+              </button>
             </div>
-          </article>
-
-          <aside className="panel right-panel">
-            <header>
-              <h3>Checks &amp; alerts</h3>
-              <button className="ghost">Review</button>
-            </header>
-            <div className="alert">
-              <p className="title">Calibration due</p>
-              <p className="meta">8 multimeters require calibration today.</p>
-              <span className="chip warning">Medium</span>
+            <div className="entry-grid">
+              {entryFields.map((field) => (
+                <label key={field.key} className="entry-field">
+                  <span className="entry-label">{field.label}</span>
+                  {field.multiline ? (
+                    <textarea
+                      className="entry-input entry-textarea"
+                      rows={2}
+                      value={entryDraft[field.key]}
+                      onChange={(event) =>
+                        handleEntryDraftChange(field.key, event.target.value)
+                      }
+                    />
+                  ) : (
+                    <input
+                      className="entry-input"
+                      type={field.type}
+                      value={entryDraft[field.key]}
+                      onChange={(event) =>
+                        handleEntryDraftChange(field.key, event.target.value)
+                      }
+                    />
+                  )}
+                </label>
+              ))}
             </div>
-            <div className="alert">
-              <p className="title">Missing consumables</p>
-              <p className="meta">Drywall screws below threshold.</p>
-              <span className="chip danger">High</span>
+            <div className="entry-actions">
+              <button
+                type="button"
+                className="entry-button secondary"
+                onClick={() => setIsEntryOpen(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="entry-button"
+                onClick={handleSaveEntry}
+              >
+                Save entry
+              </button>
             </div>
-            <div className="alert">
-              <p className="title">Fuel check</p>
-              <p className="meta">Generator fuel at 64%.</p>
-              <span className="chip neutral">Low</span>
-            </div>
-            <div className="cta-card">
-              <p className="title">Next action</p>
-              <p className="meta">Assign Mid C shelf to electrical overflow kit.</p>
-              <button className="primary">Assign shelf</button>
-            </div>
-          </aside>
-        </section>
-
-        <footer>
-          <p>Last synced <span>{timestamp}</span></p>
-        </footer>
-      </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
