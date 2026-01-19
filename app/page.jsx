@@ -1,38 +1,23 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import DispatchWarnings from './components/DispatchWarnings';
 import Footer from './components/Footer';
 import LoadPlanDiagram from './components/LoadPlanDiagram';
-import PositionDetail from './components/PositionDetail';
-import { dashboardMeta, shelves as initialShelves, warnings } from './data/loadPlan';
-import { supabase } from '../lib/supabaseClient';
+import PositionDetailPanel from './components/load-plan/PositionDetailPanel';
+import { dashboardMeta, shelves as initialShelves, warnings } from './components/load-plan/mockData';
 
-const entryFields = [
-  { key: 'quantity', label: 'Quantity', type: 'text' },
-  { key: 'name', label: 'Name', type: 'text' },
-  { key: 'category', label: 'Category', type: 'text' },
-  { key: 'description', label: 'Description', type: 'text', multiline: true },
-  { key: 'partNumber', label: 'Part number', type: 'text' },
-  { key: 'cost', label: 'Approx. cost', type: 'text' }
-];
-
-const defaultEntry = {
-  quantity: '',
-  name: '',
-  category: '',
-  description: '',
-  partNumber: '',
-  cost: ''
+const createItemId = (name) => {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+    return crypto.randomUUID();
+  }
+  return `${name}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 };
 
 export default function Home() {
   const [timestamp, setTimestamp] = useState('just now');
-  const [selectedId, setSelectedId] = useState('shelf-5E');
+  const [selectedId, setSelectedId] = useState('5E');
   const [shelves, setShelves] = useState(initialShelves);
-  const [isEntryOpen, setIsEntryOpen] = useState(false);
-  const [entryDraft, setEntryDraft] = useState(defaultEntry);
-  const saveTimeoutsRef = useRef(new Map());
 
   useEffect(() => {
     const updateTimestamp = () => {
@@ -55,157 +40,81 @@ export default function Home() {
   );
 
   const handleSelectShelf = (id) => {
-    const shelf = shelves.find((item) => item.id === id);
     setSelectedId(id);
-    setEntryDraft(shelf?.entry ?? defaultEntry);
-    setIsEntryOpen(true);
   };
 
-  const handleAddEntry = () => {
-    const shelf = shelves.find((item) => item.id === selectedId);
-    setEntryDraft(shelf?.entry ?? defaultEntry);
-    setIsEntryOpen(true);
-  };
-
-  const handleShelfNameChange = (nextName) => {
+  const handleUpdateShelfName = (id, nextName) => {
     setShelves((prev) =>
-      prev.map((shelf) =>
-        shelf.id === selectedId ? { ...shelf, label: nextName } : shelf
-      )
+      prev.map((shelf) => (shelf.id === id ? { ...shelf, displayName: nextName } : shelf))
     );
   };
 
-  const handleShelfItemChange = (index, nextValue) => {
-    let updatedShelf = null;
+  const handleAddShelfItem = (id, nextItem) => {
+    const trimmedName = nextItem.name.trim();
+    if (!trimmedName) {
+      return { error: 'Item name is required.' };
+    }
+    const qtyValue = typeof nextItem.qty === 'number' ? nextItem.qty : 1;
+    if (!Number.isFinite(qtyValue) || qtyValue <= 0) {
+      return { error: 'Quantity must be a positive number.' };
+    }
+
+    let error = null;
     setShelves((prev) =>
       prev.map((shelf) => {
-        if (shelf.id !== selectedId) {
+        if (shelf.id !== id) {
           return shelf;
         }
 
-        const nextContents = [...shelf.contents];
-        nextContents[index] = nextValue;
-        updatedShelf = { ...shelf, contents: nextContents };
-        return updatedShelf;
-      })
-    );
-    if (updatedShelf) {
-      scheduleShelfSave(updatedShelf);
-    }
-  };
+        const existingIndex = shelf.items.findIndex(
+          (item) => item.name.toLowerCase() === trimmedName.toLowerCase()
+        );
 
-  const buildSummary = (entry) => {
-    const summaryParts = [
-      entry.quantity && entry.name
-        ? `${entry.quantity} × ${entry.name}`
-        : entry.name || entry.quantity,
-      entry.category ? `(${entry.category})` : null,
-      entry.partNumber ? `PN ${entry.partNumber}` : null,
-      entry.cost ? entry.cost : null,
-      entry.description ? entry.description : null
-    ].filter(Boolean);
-    return summaryParts.join(' · ');
-  };
+        if (existingIndex >= 0) {
+          const nextItems = shelf.items.map((item, index) => {
+            if (index !== existingIndex) {
+              return item;
+            }
+            return {
+              ...item,
+              qty: (item.qty ?? 1) + qtyValue
+            };
+          });
+          return { ...shelf, items: nextItems };
+        }
 
-  const persistShelfToSupabase = async (shelf, summaryOverride) => {
-    if (!supabase) {
-      console.warn('Supabase client unavailable; shelf entry stored locally only.');
-      return;
-    }
-
-    const summary = summaryOverride ?? buildSummary(shelf.entry ?? defaultEntry);
-    const payload = {
-      shelf_id: shelf.id,
-      shelf_label: shelf.label,
-      entry: shelf.entry ?? defaultEntry,
-      contents: shelf.contents,
-      summary,
-      updated_at: new Date().toISOString()
-    };
-
-    const { error } = await supabase
-      .from('shelf_entries')
-      .upsert(payload, { onConflict: 'shelf_id' });
-
-    if (error) {
-      console.error('Failed to save shelf entry to Supabase', error);
-    }
-  };
-
-  const scheduleShelfSave = (shelf) => {
-    const timeouts = saveTimeoutsRef.current;
-    if (timeouts.has(shelf.id)) {
-      clearTimeout(timeouts.get(shelf.id));
-    }
-    const timeoutId = setTimeout(() => {
-      persistShelfToSupabase(shelf);
-      timeouts.delete(shelf.id);
-    }, 600);
-    timeouts.set(shelf.id, timeoutId);
-  };
-
-  const limitToTwoSentences = (value) => {
-    const sentences = value
-      .match(/[^.!?]+[.!?]*/g)
-      ?.map((segment) => segment.trim())
-      .filter((segment) => segment.length > 0) ?? [];
-    return sentences.slice(0, 2).join(' ');
-  };
-
-  const handleEntryDraftChange = (field, nextValue) => {
-    const nextEntryValue =
-      field === 'description' ? limitToTwoSentences(nextValue) : nextValue;
-    setEntryDraft((prev) => ({
-      ...prev,
-      [field]: nextEntryValue
-    }));
-  };
-
-  const handleSaveEntry = async () => {
-    const summary = buildSummary(entryDraft);
-    const currentShelf = shelves.find((item) => item.id === selectedId);
-    const baseContents = currentShelf?.contents ?? [];
-    const nextContents = [...baseContents];
-    const emptyIndex = nextContents.findIndex(
-      (item) => item.trim().length === 0
-    );
-    if (summary) {
-      if (emptyIndex >= 0) {
-        nextContents[emptyIndex] = summary;
-      } else if (nextContents.length > 0) {
-        nextContents[nextContents.length - 1] = summary;
-      }
-    }
-    setShelves((prev) =>
-      prev.map((shelf) => {
-        if (shelf.id !== selectedId) {
+        if (shelf.items.length >= 20) {
+          error = 'Shelf full (20 / 20)';
           return shelf;
         }
 
         return {
           ...shelf,
-          entry: {
-            ...shelf.entry,
-            ...entryDraft
-          },
-          contents: nextContents.length ? nextContents : shelf.contents
+          items: [
+            ...shelf.items,
+            {
+              id: createItemId(trimmedName),
+              name: trimmedName,
+              qty: qtyValue
+            }
+          ]
         };
       })
     );
-    if (currentShelf) {
-      await persistShelfToSupabase(
-        {
-          ...currentShelf,
-          entry: {
-            ...currentShelf.entry,
-            ...entryDraft
-          },
-          contents: nextContents.length ? nextContents : currentShelf.contents
-        },
-        summary
-      );
+    if (error) {
+      return { error };
     }
-    setIsEntryOpen(false);
+    return { error: null };
+  };
+
+  const handleRemoveShelfItem = (id, itemId) => {
+    setShelves((prev) =>
+      prev.map((shelf) =>
+        shelf.id === id
+          ? { ...shelf, items: shelf.items.filter((item) => item.id !== itemId) }
+          : shelf
+      )
+    );
   };
 
   return (
@@ -227,11 +136,11 @@ export default function Home() {
               onSelect={handleSelectShelf}
             />
             {selectedShelf && (
-              <PositionDetail
+              <PositionDetailPanel
                 shelf={selectedShelf}
-                onNameChange={handleShelfNameChange}
-                onItemChange={handleShelfItemChange}
-                onAddEntry={handleAddEntry}
+                onUpdateName={handleUpdateShelfName}
+                onAddItem={handleAddShelfItem}
+                onRemoveItem={handleRemoveShelfItem}
               />
             )}
           </div>
@@ -241,67 +150,6 @@ export default function Home() {
 
         <Footer timestamp={timestamp} />
       </main>
-      {isEntryOpen && (
-        <div className="entry-modal">
-          <div className="entry-card">
-            <div className="entry-header">
-              <div>
-                <p className="eyebrow">Shelf entry</p>
-                <h3>{selectedShelf?.label}</h3>
-              </div>
-              <button
-                type="button"
-                className="entry-close"
-                onClick={() => setIsEntryOpen(false)}
-              >
-                Close
-              </button>
-            </div>
-            <div className="entry-grid">
-              {entryFields.map((field) => (
-                <label key={field.key} className="entry-field">
-                  <span className="entry-label">{field.label}</span>
-                  {field.multiline ? (
-                    <textarea
-                      className="entry-input entry-textarea"
-                      rows={2}
-                      value={entryDraft[field.key]}
-                      onChange={(event) =>
-                        handleEntryDraftChange(field.key, event.target.value)
-                      }
-                    />
-                  ) : (
-                    <input
-                      className="entry-input"
-                      type={field.type}
-                      value={entryDraft[field.key]}
-                      onChange={(event) =>
-                        handleEntryDraftChange(field.key, event.target.value)
-                      }
-                    />
-                  )}
-                </label>
-              ))}
-            </div>
-            <div className="entry-actions">
-              <button
-                type="button"
-                className="entry-button secondary"
-                onClick={() => setIsEntryOpen(false)}
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                className="entry-button"
-                onClick={handleSaveEntry}
-              >
-                Save entry
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

@@ -4,15 +4,11 @@ const viewOptions = ['Top', 'Side', 'Split'];
 
 export default function LoadPlanDiagram({ shelves, selectedId, onSelect }) {
   const [view, setView] = useState('Top');
-
-  const [leftShelves, rightShelves] = useMemo(() => {
-    const midpoint = Math.ceil(shelves.length / 2);
-    return [shelves.slice(0, midpoint), shelves.slice(midpoint)];
-  }, [shelves]);
+  const getShelfStatus = (shelf) => (shelf.items.length ? 'assigned' : 'empty');
 
   const topShelves = useMemo(() => {
     const topRows = new Set(['5', '4']);
-    return shelves.filter((shelf) => topRows.has(shelf.label[0]));
+    return shelves.filter((shelf) => topRows.has(shelf.id[0]));
   }, [shelves]);
 
   return (
@@ -27,10 +23,12 @@ export default function LoadPlanDiagram({ shelves, selectedId, onSelect }) {
                 <button
                   key={shelf.id}
                   type="button"
-                  className={`position ${shelf.status}${shelf.id === selectedId ? ' selected' : ''}`}
+                  className={`position ${getShelfStatus(shelf)}${
+                    shelf.id === selectedId ? ' selected' : ''
+                  }`}
                   onClick={() => onSelect(shelf.id)}
                 >
-                  <span className="position-name">{shelf.label}</span>
+                  <span className="position-name">{shelf.displayName}</span>
                 </button>
               ))}
             </div>
@@ -52,10 +50,12 @@ export default function LoadPlanDiagram({ shelves, selectedId, onSelect }) {
                     <button
                       key={`left-${shelf.id}`}
                       type="button"
-                      className={`position ${shelf.status}${shelf.id === selectedId ? ' selected' : ''}`}
+                      className={`position ${getShelfStatus(shelf)}${
+                        shelf.id === selectedId ? ' selected' : ''
+                      }`}
                       onClick={() => onSelect(shelf.id)}
                     >
-                      <span className="position-name">{shelf.label}</span>
+                      <span className="position-name">{shelf.displayName}</span>
                     </button>
                   ))}
                 </div>
@@ -67,10 +67,12 @@ export default function LoadPlanDiagram({ shelves, selectedId, onSelect }) {
                     <button
                       key={`right-${shelf.id}`}
                       type="button"
-                      className={`position ${shelf.status}${shelf.id === selectedId ? ' selected' : ''}`}
+                      className={`position ${getShelfStatus(shelf)}${
+                        shelf.id === selectedId ? ' selected' : ''
+                      }`}
                       onClick={() => onSelect(shelf.id)}
                     >
-                      <span className="position-name">{shelf.label}</span>
+                      <span className="position-name">{shelf.displayName}</span>
                     </button>
                   ))}
                 </div>
