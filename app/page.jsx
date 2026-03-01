@@ -3,9 +3,15 @@
 import { useEffect, useMemo, useState } from 'react';
 import DispatchWarnings from './components/DispatchWarnings';
 import Footer from './components/Footer';
-import LoadPlanDiagram from './components/LoadPlanDiagram';
+import LoadPlanDiagram, {
+  initialTopCategoryLabels,
+  topCategoryLayout
+} from './components/LoadPlanDiagram';
 import PositionDetailPanel from './components/load-plan/PositionDetailPanel';
+import TopCategoryPanel from './components/load-plan/TopCategoryPanel';
 import { dashboardMeta, shelves as initialShelves, warnings } from './components/load-plan/mockData';
+
+const TOP_CATEGORY_LABELS_STORAGE_KEY = 'cargoVan.topCategoryLabels.v1';
 
 const createItemId = (name) => {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
@@ -16,8 +22,11 @@ const createItemId = (name) => {
 
 export default function Home() {
   const [timestamp, setTimestamp] = useState('just now');
+  const [activeView, setActiveView] = useState('Top');
   const [selectedId, setSelectedId] = useState('5E');
   const [shelves, setShelves] = useState(initialShelves);
+  const [selectedTopCategoryId, setSelectedTopCategoryId] = useState(topCategoryLayout.top[2].id);
+  const [topCategoryLabels, setTopCategoryLabels] = useState(initialTopCategoryLabels);
 
   useEffect(() => {
     const updateTimestamp = () => {
@@ -34,10 +43,65 @@ export default function Home() {
     return () => clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(TOP_CATEGORY_LABELS_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object') return;
+      setTopCategoryLabels((prev) => ({ ...prev, ...parsed }));
+    } catch {
+      // Keep defaults if storage is unavailable or malformed.
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        TOP_CATEGORY_LABELS_STORAGE_KEY,
+        JSON.stringify(topCategoryLabels)
+      );
+    } catch {
+      // Ignore persistence failures (private mode, disabled storage, etc).
+    }
+  }, [topCategoryLabels]);
+
   const selectedShelf = useMemo(
     () => shelves.find((shelf) => shelf.id === selectedId) ?? shelves[0],
     [selectedId, shelves]
   );
+
+  const topSlots = useMemo(
+    () => [...topCategoryLayout.left, ...topCategoryLayout.top, ...topCategoryLayout.bottom],
+    []
+  );
+
+  const topSlotById = useMemo(
+    () => Object.fromEntries(topSlots.map((slot) => [slot.id, slot])),
+    [topSlots]
+  );
+
+  const selectedTopSlot = topSlotById[selectedTopCategoryId] ?? topSlots[0];
+  const selectedRowLetter = selectedTopSlot?.code?.slice(-1) ?? 'A';
+  const selectedTopCategoryRaw = topCategoryLabels[selectedTopCategoryId]?.trim() || '';
+  const selectedTopCategoryName =
+    !selectedTopCategoryRaw || selectedTopCategoryRaw === 'Category'
+      ? 'No Category'
+      : selectedTopCategoryRaw;
+
+  const selectedVerticalRow = useMemo(() => {
+    const codes = [`R${selectedRowLetter}`, `C${selectedRowLetter}`, `L${selectedRowLetter}`];
+    return topSlots
+      .filter((slot) => codes.includes(slot.code))
+      .map((slot) => ({
+        id: slot.id,
+        code: slot.code,
+        category: (() => {
+          const value = topCategoryLabels[slot.id]?.trim() || '';
+          return !value || value === 'Category' ? 'No Category' : value;
+        })()
+      }));
+  }, [topSlots, selectedRowLetter, topCategoryLabels]);
 
   const handleSelectShelf = (id) => {
     setSelectedId(id);
@@ -134,8 +198,21 @@ export default function Home() {
               shelves={shelves}
               selectedId={selectedId}
               onSelect={handleSelectShelf}
+              activeView={activeView}
+              onViewChange={setActiveView}
+              selectedTopCategoryId={selectedTopCategoryId}
+              onTopCategorySelect={setSelectedTopCategoryId}
+              topCategoryLabels={topCategoryLabels}
+              onTopCategoryLabelsChange={setTopCategoryLabels}
             />
-            {selectedShelf && (
+            {activeView === 'Top' ? (
+              <TopCategoryPanel
+                selectedSlotCode={selectedTopSlot?.code ?? 'RA'}
+                rowLetter={selectedRowLetter}
+                selectedCategoryName={selectedTopCategoryName}
+                entries={selectedVerticalRow}
+              />
+            ) : (
               <PositionDetailPanel
                 shelf={selectedShelf}
                 onUpdateName={handleUpdateShelfName}
