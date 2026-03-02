@@ -23,6 +23,7 @@ const createItemId = (name) => {
 export default function Home() {
   const [timestamp, setTimestamp] = useState('just now');
   const [activeView, setActiveView] = useState('Top');
+  const [debugOverlayEnabled, setDebugOverlayEnabled] = useState(true);
   const [selectedId, setSelectedId] = useState('5E');
   const [shelves, setShelves] = useState(initialShelves);
   const [selectedTopCategoryId, setSelectedTopCategoryId] = useState(topCategoryLayout.top[2].id);
@@ -200,6 +201,8 @@ export default function Home() {
               onSelect={handleSelectShelf}
               activeView={activeView}
               onViewChange={setActiveView}
+              showDebugOverlay={debugOverlayEnabled}
+              onToggleDebugOverlay={() => setDebugOverlayEnabled((prev) => !prev)}
               selectedTopCategoryId={selectedTopCategoryId}
               onTopCategorySelect={setSelectedTopCategoryId}
               topCategoryLabels={topCategoryLabels}

@@ -1,0 +1,23 @@
+<!--?xml version="1.0" encoding="UTF-8"?-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="90 85 600 300">
+  <path d="M260 130H650a12 12 0 0 1 12 12v186a12 12 0 0 1-12 12H180a60 60 0 0 1-60-60v-90a60 60 0 0 1 60-60h80Z" fill="none" stroke="#000" stroke-width="4" stroke-linejoin="round"></path>
+  <path d="M260 130V340" fill="none" stroke="#000" stroke-width="3" stroke-dasharray="6 6"></path>
+  <g fill="none" stroke="#444" stroke-width="2" opacity=".45">
+    <g transform="translate(225 130) rotate(90)">
+      <path d="M0 0l-22-10c-8-4-14 7-8 13l12 12c5 5 12 2 18-1z"></path>
+    </g>
+    <g transform="translate(225 340) rotate(270) scale(1 -1)">
+      <path d="M0 0l-22-10c-8-4-14 7-8 13l12 12c5 5 12 2 18-1z"></path>
+    </g>
+  </g>
+  <g fill="none" stroke="#555" stroke-width="1.6" opacity=".2">
+    <g transform="rotate(90 225 181) translate(190 155)">
+      <rect x="0" y="18" width="70" height="34" rx="10"></rect>
+      <rect x="6" y="0" width="58" height="18" rx="10"></rect>
+    </g>
+    <g transform="rotate(90 225 289) translate(190 263)">
+      <rect x="0" y="18" width="70" height="34" rx="10"></rect>
+      <rect x="6" y="0" width="58" height="18" rx="10"></rect>
+    </g>
+  </g>
+</svg>

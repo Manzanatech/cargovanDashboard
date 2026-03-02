@@ -1,10 +1,13 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
 const viewOptions = [
   { label: 'Top', icon: '/images/view-top.svg' },
   { label: 'Side', icon: '/images/view-side.svg' },
   { label: 'Split', icon: '/images/view-split.svg' },
 ];
+const TOP_UNDERLAY_SVG_VERSION = 'v3.3';
+const TOP_VIEWBOX = { width: 600, height: 300 };
+const CENTER_BLOCK_TARGET = { x: -20, y: 196 };
 
 const topCategoryLayout = {
   left: [
@@ -55,13 +58,25 @@ export default function LoadPlanDiagram({
   onSelect,
   activeView,
   onViewChange,
+  showDebugOverlay = true,
+  onToggleDebugOverlay,
   selectedTopCategoryId,
   onTopCategorySelect,
   topCategoryLabels,
   onTopCategoryLabelsChange
 }) {
+  const topSketchRef = useRef(null);
   const [editingTopLabelId, setEditingTopLabelId] = useState(null);
   const [topLabelDraft, setTopLabelDraft] = useState('');
+  const [topSketchSize, setTopSketchSize] = useState({ width: 0, height: 0 });
+  const [underlayBoxSize, setUnderlayBoxSize] = useState({ width: 0, height: 0 });
+  const [underlayImageSize, setUnderlayImageSize] = useState({ width: 0, height: 0 });
+  const [centerBlockOffset, setCenterBlockOffset] = useState({ x: 0, y: 0 });
+  const [topBlockAnchors, setTopBlockAnchors] = useState({
+    left: null,
+    center: null,
+    right: null
+  });
   const getShelfStatus = (shelf) => (shelf.items.length ? 'assigned' : 'empty');
   const getColumn = (shelfId) => shelfId.slice(-1);
   const centerColumns = new Set(['C']);
@@ -109,6 +124,62 @@ export default function LoadPlanDiagram({
     setTopLabelDraft('');
   };
 
+  const measureBlockAnchor = (frameNode, selector) => {
+    const items = Array.from(frameNode.querySelectorAll(selector));
+    if (!items.length) return null;
+    const frameRect = frameNode.getBoundingClientRect();
+    const rects = items.map((node) => node.getBoundingClientRect());
+    const minLeft = Math.min(...rects.map((rect) => rect.left));
+    const maxRight = Math.max(...rects.map((rect) => rect.right));
+    const minTop = Math.min(...rects.map((rect) => rect.top));
+    const maxBottom = Math.max(...rects.map((rect) => rect.bottom));
+    const x = Math.round((minLeft + maxRight) / 2 - frameRect.left);
+    const y = Math.round((minTop + maxBottom) / 2 - frameRect.top);
+    return { x, y };
+  };
+
+  useEffect(() => {
+    if (activeView !== 'Top') return;
+    const node = topSketchRef.current;
+    if (!node || typeof ResizeObserver === 'undefined') return;
+
+    const updateSize = () => {
+      const rect = node.getBoundingClientRect();
+      setTopSketchSize({
+        width: Math.round(rect.width),
+        height: Math.round(rect.height)
+      });
+      const nextAnchors = {
+        left: measureBlockAnchor(node, '.top-sketch-left .top-category-slot'),
+        center: measureBlockAnchor(
+          node,
+          '.top-sketch-main .top-sketch-row .top-slot-cell:not(:last-child) .top-category-slot'
+        ),
+        right: measureBlockAnchor(
+          node,
+          '.top-sketch-main .top-sketch-row .top-slot-cell:last-child .top-category-slot'
+        )
+      };
+      setTopBlockAnchors(nextAnchors);
+
+      if (nextAnchors.left) {
+        const dx = CENTER_BLOCK_TARGET.x - nextAnchors.left.x;
+        const dy = CENTER_BLOCK_TARGET.y - nextAnchors.left.y;
+        if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
+          setCenterBlockOffset((prev) => ({
+            x: Math.round((prev.x + dx) * 10) / 10,
+            y: Math.round((prev.y + dy) * 10) / 10
+          }));
+        }
+      }
+    };
+
+    updateSize();
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [activeView]);
+
   return (
     <div className="load-plan">
       <p className="eyebrow">Load plan diagram</p>
@@ -116,71 +187,97 @@ export default function LoadPlanDiagram({
         <div className="diagram-content">
           <p className="diagram-title">Ford Transit | 350 HD</p>
           {activeView === 'Top' && (
-            <div className="top-sketch-frame">
-              <TopVanUnderlay />
-              <div className="top-sketch-left">
-                {topCategoryLayout.left.map((slot) => (
-                  <TopCategoryShelf
-                    key={slot.id}
-                    slotId={slot.id}
-                    slotCode={slot.code}
-                    label={getTopLabel(slot.id)}
-                    labelPlacement="top"
-                    labelOrientation="horizontal"
-                    labelVariant="center-stack"
-                    selected={selectedTopCategoryId === slot.id}
-                    onSelect={onTopCategorySelect}
-                    onStartEdit={startTopLabelEdit}
-                    isEditing={editingTopLabelId === slot.id}
-                    draft={topLabelDraft}
-                    onDraftChange={setTopLabelDraft}
-                    onCommit={commitTopLabelEdit}
-                    onCancel={cancelTopLabelEdit}
-                  />
-                ))}
-              </div>
-              <div className="top-sketch-main">
-                <div className="top-sketch-row">
-                  {topCategoryLayout.top.map((slot) => (
-                    <TopCategoryShelf
-                      key={slot.id}
-                      slotId={slot.id}
-                      slotCode={slot.code}
-                      label={getTopLabel(slot.id)}
-                      labelPlacement="below"
-                      labelOrientation="vertical"
-                      labelVariant="top-right"
-                      selected={selectedTopCategoryId === slot.id}
-                      onSelect={onTopCategorySelect}
-                      onStartEdit={startTopLabelEdit}
-                      isEditing={editingTopLabelId === slot.id}
-                      draft={topLabelDraft}
-                      onDraftChange={setTopLabelDraft}
-                      onCommit={commitTopLabelEdit}
-                      onCancel={cancelTopLabelEdit}
-                    />
-                  ))}
-                </div>
-                <p className="top-sketch-aisle">AISLE</p>
-                <div className="top-sketch-row">
-                  {topCategoryLayout.bottom.map((slot) => (
-                    <TopCategoryShelf
-                      key={slot.id}
-                      slotId={slot.id}
-                      slotCode={slot.code}
-                      label={getTopLabel(slot.id)}
-                      labelPlacement="top"
-                      labelOrientation="vertical"
-                      selected={selectedTopCategoryId === slot.id}
-                      onSelect={onTopCategorySelect}
-                      onStartEdit={startTopLabelEdit}
-                      isEditing={editingTopLabelId === slot.id}
-                      draft={topLabelDraft}
-                      onDraftChange={setTopLabelDraft}
-                      onCommit={commitTopLabelEdit}
-                      onCancel={cancelTopLabelEdit}
-                    />
-                  ))}
+            <div
+              className={`top-sketch-frame ${showDebugOverlay ? 'debug-on' : 'debug-off'}`}
+              ref={topSketchRef}
+            >
+              <TopVanUnderlay
+                onBoxSizeChange={setUnderlayBoxSize}
+                onImageSizeChange={setUnderlayImageSize}
+              />
+              {showDebugOverlay && (
+                <TopAlignmentGuide
+                  width={topSketchSize.width}
+                  height={topSketchSize.height}
+                  underlayBoxWidth={underlayBoxSize.width}
+                  underlayBoxHeight={underlayBoxSize.height}
+                  underlayWidth={underlayImageSize.width}
+                  underlayHeight={underlayImageSize.height}
+                  blockAnchors={topBlockAnchors}
+                />
+              )}
+              <div className="top-shelf-clip">
+                <div className="top-shelf-overlay">
+                  <div
+                    className="top-sketch-left"
+                    style={{
+                      transform: `translate(${centerBlockOffset.x}px, ${centerBlockOffset.y}px)`
+                    }}
+                  >
+                    {topCategoryLayout.left.map((slot) => (
+                      <TopCategoryShelf
+                        key={slot.id}
+                        slotId={slot.id}
+                        slotCode={slot.code}
+                        label={getTopLabel(slot.id)}
+                        labelPlacement="top"
+                        labelOrientation="horizontal"
+                        labelVariant="center-stack"
+                        selected={selectedTopCategoryId === slot.id}
+                        onSelect={onTopCategorySelect}
+                        onStartEdit={startTopLabelEdit}
+                        isEditing={editingTopLabelId === slot.id}
+                        draft={topLabelDraft}
+                        onDraftChange={setTopLabelDraft}
+                        onCommit={commitTopLabelEdit}
+                        onCancel={cancelTopLabelEdit}
+                      />
+                    ))}
+                  </div>
+                  <div className="top-sketch-main">
+                    <div className="top-sketch-row">
+                      {topCategoryLayout.top.map((slot) => (
+                        <TopCategoryShelf
+                          key={slot.id}
+                          slotId={slot.id}
+                          slotCode={slot.code}
+                          label={getTopLabel(slot.id)}
+                          labelPlacement="below"
+                          labelOrientation="vertical"
+                          labelVariant="top-right"
+                          selected={selectedTopCategoryId === slot.id}
+                          onSelect={onTopCategorySelect}
+                          onStartEdit={startTopLabelEdit}
+                          isEditing={editingTopLabelId === slot.id}
+                          draft={topLabelDraft}
+                          onDraftChange={setTopLabelDraft}
+                          onCommit={commitTopLabelEdit}
+                          onCancel={cancelTopLabelEdit}
+                        />
+                      ))}
+                    </div>
+                    <p className="top-sketch-aisle">AISLE</p>
+                    <div className="top-sketch-row">
+                      {topCategoryLayout.bottom.map((slot) => (
+                        <TopCategoryShelf
+                          key={slot.id}
+                          slotId={slot.id}
+                          slotCode={slot.code}
+                          label={getTopLabel(slot.id)}
+                          labelPlacement="top"
+                          labelOrientation="vertical"
+                          selected={selectedTopCategoryId === slot.id}
+                          onSelect={onTopCategorySelect}
+                          onStartEdit={startTopLabelEdit}
+                          isEditing={editingTopLabelId === slot.id}
+                          draft={topLabelDraft}
+                          onDraftChange={setTopLabelDraft}
+                          onCommit={commitTopLabelEdit}
+                          onCancel={cancelTopLabelEdit}
+                        />
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -288,6 +385,13 @@ export default function LoadPlanDiagram({
                 </button>
               ))}
             </div>
+            <button
+              type="button"
+              className={`debug-toggle${showDebugOverlay ? ' active' : ''}`}
+              onClick={() => onToggleDebugOverlay?.()}
+            >
+              {showDebugOverlay ? 'Hide Debug' : 'Show Debug'}
+            </button>
           </div>
         </div>
       </div>
@@ -295,51 +399,187 @@ export default function LoadPlanDiagram({
   );
 }
 
-function TopVanUnderlay() {
+function TopAlignmentGuide({
+  width,
+  height,
+  underlayBoxWidth,
+  underlayBoxHeight,
+  underlayWidth,
+  underlayHeight,
+  blockAnchors
+}) {
+  const zoneTicks = [0, 20, 40, 60, 80, 100];
+
   return (
-    <svg
-      className="top-van-underlay"
-      viewBox="0 0 1500 620"
-      role="img"
-      aria-label="Cargo van top-view silhouette"
-      preserveAspectRatio="none"
-    >
-      <path
-        className="top-van-fill"
-        d="M1388 108 C1420 108 1446 134 1446 166 V454 C1446 486 1420 512 1388 512 H500
-           C360 512 260 456 200 380 C178 352 166 330 166 310 C166 290 178 268 200 240
-           C260 164 360 108 500 108 H1388 Z"
+    <div className="top-align-guide" aria-hidden="true">
+      <div className="top-cargo-guide-zone">
+        <span className="top-cargo-guide-label">Cargo guide</span>
+        <div className="top-cargo-ruler top-cargo-ruler-x">
+          {zoneTicks.map((tick) => (
+            <span
+              key={`cargo-x-${tick}`}
+              className="top-cargo-ruler-tick top-cargo-ruler-tick-x"
+              style={{ left: `${tick}%` }}
+            >
+              {tick}
+            </span>
+          ))}
+        </div>
+        <div className="top-cargo-ruler top-cargo-ruler-y">
+          {zoneTicks.map((tick) => (
+            <span
+              key={`cargo-y-${tick}`}
+              className="top-cargo-ruler-tick top-cargo-ruler-tick-y"
+              style={{ top: `${tick}%` }}
+            >
+              {tick}
+            </span>
+          ))}
+        </div>
+        <span className="top-cargo-guide-axis axis-x-mid" />
+        <span className="top-cargo-guide-axis axis-y-mid" />
+      </div>
+      {blockAnchors?.left && (
+        <span
+          className="top-cargo-block-label"
+          style={{ left: `${blockAnchors.left.x}px`, top: `${blockAnchors.left.y}px` }}
+        >
+          Center Shelves ({blockAnchors.left.x}px, {blockAnchors.left.y}px)
+        </span>
+      )}
+      {blockAnchors?.center && (
+        <span
+          className="top-cargo-block-label"
+          style={{ left: `${blockAnchors.center.x}px`, top: `${blockAnchors.center.y}px` }}
+        >
+          Left Side Shelves ({blockAnchors.center.x}px, {blockAnchors.center.y}px)
+        </span>
+      )}
+      {blockAnchors?.right && (
+        <span
+          className="top-cargo-block-label"
+          style={{ left: `${blockAnchors.right.x}px`, top: `${blockAnchors.right.y}px` }}
+        >
+          Right Side Shelves ({blockAnchors.right.x}px, {blockAnchors.right.y}px)
+        </span>
+      )}
+
+      <div className="top-viewbox-readout">
+        <span className="top-viewbox-pill">viewBox W: {TOP_VIEWBOX.width}</span>
+        <span className="top-viewbox-pill">viewBox H: {TOP_VIEWBOX.height}</span>
+      </div>
+      <div className="top-dimension-readout" data-container-size={`${width || 0}x${height || 0}`}>
+        <span className="top-dimension-pill">Container W: {width || 0}px</span>
+        <span className="top-dimension-pill">Container H: {height || 0}px</span>
+      </div>
+      <div className="top-underlay-box-readout">
+        <span className="top-underlay-box-pill">Underlay Box W: {underlayBoxWidth || 0}px</span>
+        <span className="top-underlay-box-pill">Underlay Box H: {underlayBoxHeight || 0}px</span>
+      </div>
+      <div className="top-underlay-readout">
+        <span className="top-underlay-pill">Underlay W: {underlayWidth || 0}px</span>
+        <span className="top-underlay-pill">Underlay H: {underlayHeight || 0}px</span>
+      </div>
+      <div className="top-debug-legend" aria-hidden="true">
+        <p className="top-debug-legend-title">Debug Key</p>
+        <span className="top-debug-legend-item">
+          <span className="top-debug-swatch swatch-cargo" />
+          Cargo zone overlay
+        </span>
+        <span className="top-debug-legend-item">
+          <span className="top-debug-swatch swatch-underlay-box" />
+          Underlay box
+        </span>
+        <span className="top-debug-legend-item">
+          <span className="top-debug-swatch swatch-underlay-image" />
+          Underlay image
+        </span>
+        <span className="top-debug-legend-item">
+          <span className="top-debug-swatch swatch-shelves" />
+          Shelf clip area
+        </span>
+        <span className="top-debug-legend-item">
+          <span className="top-debug-swatch swatch-rulers" />
+          Rulers and guides
+        </span>
+        <span className="top-debug-legend-item">
+          <span className="top-debug-swatch swatch-readouts" />
+          Size readouts
+        </span>
+      </div>
+
+    </div>
+  );
+}
+
+function TopVanUnderlay({ onBoxSizeChange, onImageSizeChange }) {
+  const underlayBoxRef = useRef(null);
+  const underlayImageRef = useRef(null);
+
+  useEffect(() => {
+    const node = underlayBoxRef.current;
+    if (!node || typeof ResizeObserver === 'undefined' || typeof onBoxSizeChange !== 'function') {
+      return;
+    }
+
+    const updateSize = () => {
+      const rect = node.getBoundingClientRect();
+      onBoxSizeChange({
+        width: Math.round(rect.width),
+        height: Math.round(rect.height)
+      });
+    };
+
+    updateSize();
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [onBoxSizeChange]);
+
+  useEffect(() => {
+    const node = underlayImageRef.current;
+    if (!node || typeof ResizeObserver === 'undefined' || typeof onImageSizeChange !== 'function') {
+      return;
+    }
+
+    const updateSize = () => {
+      const rect = node.getBoundingClientRect();
+      onImageSizeChange({
+        width: Math.round(rect.width),
+        height: Math.round(rect.height)
+      });
+    };
+
+    updateSize();
+    const observer = new ResizeObserver(updateSize);
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [onImageSizeChange]);
+
+  return (
+    <div className="top-van-underlay" aria-hidden="true" ref={underlayBoxRef}>
+      <img
+        ref={underlayImageRef}
+        className="top-van-underlay-image"
+        src={`/images/van_layout_productionV3.svg?${TOP_UNDERLAY_SVG_VERSION}`}
+        alt=""
+        draggable="false"
       />
-      <path
-        className="top-van-border"
-        d="M1388 108 C1420 108 1446 134 1446 166 V454 C1446 486 1420 512 1388 512 H500
-           C360 512 260 456 200 380 C178 352 166 330 166 310 C166 290 178 268 200 240
-           C260 164 360 108 500 108 H1388 Z"
-      />
-      <path
-        className="top-van-shell"
-        d="M1368 126 C1398 126 1420 148 1420 178 V442 C1420 472 1398 494 1368 494 H514
-           C384 494 290 442 236 368 C218 344 208 326 208 310 C208 294 218 276 236 252
-           C290 178 384 126 514 126 H1368 Z"
-      />
-
-      <path className="top-van-cab" d="M498 130 C374 130 286 176 236 244 C220 266 212 286 212 310" />
-      <path className="top-van-cab" d="M498 490 C374 490 286 444 236 376 C220 354 212 334 212 310" />
-      <path className="top-van-cab soft" d="M482 154 C380 154 308 194 268 248 C252 270 244 288 244 310" />
-      <path className="top-van-cab soft" d="M482 466 C380 466 308 426 268 372 C252 350 244 332 244 310" />
-      <path className="top-van-cab soft" d="M458 178 C376 178 320 210 288 254 C274 272 268 290 268 310" />
-      <path className="top-van-cab soft" d="M458 442 C376 442 320 410 288 366 C274 348 268 330 268 310" />
-
-      <line className="top-van-cab" x1="430" y1="132" x2="430" y2="488" />
-      <line className="top-van-cab soft" x1="468" y1="144" x2="468" y2="476" />
-
-      <line className="top-van-shell soft" x1="516" y1="126" x2="1368" y2="126" />
-      <line className="top-van-shell soft" x1="516" y1="494" x2="1368" y2="494" />
-
-      <line className="top-van-rear" x1="1342" y1="130" x2="1342" y2="490" />
-      <line className="top-van-rear soft" x1="1368" y1="146" x2="1368" y2="474" />
-      <line className="top-van-rear soft" x1="1392" y1="166" x2="1392" y2="454" />
-    </svg>
+      <svg
+        className="top-cargo-zone-svg"
+        viewBox="90 85 600 300"
+        preserveAspectRatio="xMidYMid meet"
+        aria-hidden="true"
+      >
+        <path
+          className="top-cargo-zone-path"
+          d="M260 130H650a12 12 0 0 1 12 12v186a12 12 0 0 1-12 12H260Z"
+        />
+        <text className="top-cargo-zone-text" x="644" y="145">
+          Cargo Zone
+        </text>
+      </svg>
+    </div>
   );
 }
 

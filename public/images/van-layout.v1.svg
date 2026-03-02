@@ -1,0 +1,79 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 470" id="cargo-van-layout-v1">
+
+  <defs>
+    <!-- Grid patterns -->
+    <pattern id="grid10" width="10" height="10" patternUnits="userSpaceOnUse">
+      <path d="M10 0H0V10" fill="none" stroke="#f2f2f2" stroke-width="1"></path>
+    </pattern>
+    <pattern id="grid50" width="50" height="50" patternUnits="userSpaceOnUse">
+      <path d="M50 0H0V50" fill="none" stroke="#d9d9d9" stroke-width="1.1"></path>
+    </pattern>
+  </defs>
+
+  <!-- Grid -->
+  <g id="grid">
+    <rect width="760" height="470" fill="url(#grid10)"></rect>
+    <rect width="760" height="470" fill="url(#grid50)"></rect>
+  </g>
+
+  <!-- Van Outline -->
+  <g id="van-outline">
+    <path fill="none" stroke="black" stroke-width="4" stroke-linejoin="round" d="
+        M260,95
+        L650,95
+        A12,12 0 0 1 662,107
+        L662,293
+        A12,12 0 0 1 650,305
+        L180,305
+        A60,60 0 0 1 120,245
+        L120,155
+        A60,60 0 0 1 180,95
+        L260,95
+        Z"></path>
+  </g>
+
+  <!-- Cab / Cargo Separation -->
+  <line id="cab-seam" x1="260" y1="95" x2="260" y2="305" stroke="black" stroke-width="3" stroke-dasharray="6 6"></line>
+
+  <!-- Centerline -->
+  <line id="vehicle-centerline" x1="80" y1="200" x2="690" y2="200" stroke="#8c8c8c" stroke-width="2" stroke-dasharray="8 6"></line>
+
+  <!-- Mirrors -->
+  <g id="mirrors" opacity="0.45" stroke="#444" stroke-width="2" fill="none">
+
+    <!-- Upper Mirror -->
+    <g id="mirror-upper" transform="translate(225 95) rotate(90)">
+      <path d="M0,0 l-22,-10 c-8,-4 -14,7 -8,13 l12,12 c5,5 12,2 18,-1 z"></path>
+    </g>
+
+    <!-- Lower Mirror (vertically flipped) -->
+    <g id="mirror-lower" transform="translate(225 305) rotate(270)">
+      <g transform="scale(1,-1)">
+        <path d="M0,0 l-22,-10 c-8,-4 -14,7 -8,13 l12,12 c5,5 12,2 18,-1 z"></path>
+      </g>
+    </g>
+
+  </g>
+
+  <!-- Seats -->
+  <g id="seats" opacity="0.20" stroke="#555" stroke-width="1.6" fill="none">
+
+    <!-- Driver -->
+    <g id="seat-driver" transform="rotate(90 225 146)">
+      <g transform="translate(190 120)">
+        <rect x="0" y="18" width="70" height="34" rx="10"></rect>
+        <rect x="6" y="0" width="58" height="18" rx="10"></rect>
+      </g>
+    </g>
+
+    <!-- Passenger -->
+    <g id="seat-passenger" transform="rotate(90 225 254)">
+      <g transform="translate(190 228)">
+        <rect x="0" y="18" width="70" height="34" rx="10"></rect>
+        <rect x="6" y="0" width="58" height="18" rx="10"></rect>
+      </g>
+    </g>
+
+  </g>
+
+</svg>
